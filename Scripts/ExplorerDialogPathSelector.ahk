@@ -34,6 +34,13 @@ class pathSelector_DefaultSettings {
     ; Path to dopusrt.exe - can be empty to explicitly disable Directory Opus integration, but it will automatically disable if the file is not found anyway
     static dopusRTPath := "C:\Program Files\GPSoftware\Directory Opus\dopusrt.exe"
     static maxMenuLength := 120             ; Maximum length of menu items. The true max is MAX_PATH, but thats really long so this is a reasonable limit
+    static darkMode := false    ; Default to light mode
+    static darkModeColors := {
+        background: "0x202020",
+        text: "0xFFFFFF",
+        control: "0x404040",
+        editbox: "0x303030"
+    }
 }
 
 ; System Tray Menu Options
@@ -434,7 +441,10 @@ DisplayDialogPathMenu(thisHotkey) { ; Called via the Hotkey function, so it must
     CurrentLocations := Menu()
     hasItems := false
     currentMenuNum := 0 ; Used to keep track of the current menu item number so we can refer to each item by index like "1&" in case of duplicate path entries
-
+     if (g_pth_Settings.darkMode) {
+        ; Apply dark mode to menu
+        DllCall("uxtheme\SetWindowTheme", "Ptr", CurrentLocations.hwnd, "Str", "DarkMode_Explorer", "Ptr", 0)
+    }
     ; Only get Directory Opus paths if dopusRTPath is set
     if (g_pth_Settings.dopusRTPath != "") {
         ; Get paths from Directory Opus using DOpusRT
@@ -837,6 +847,44 @@ ShowPathSelectorSettingsGUI(*) {
         labelUIAccessCheckTooltipText := "Enable `"UI Access`" to allow the script to run in elevated windows protected by UAC without running as admin."
         AddTooltipToControl(hTT, UIAccessCheck.Hwnd, labelUIAccessCheckTooltipText)
     }
+    
+    ; Add dark mode checkbox before the divider
+    darkModeCheck := settingsGui.AddCheckbox("xm y+5", "Enable Dark Mode")
+    darkModeCheck.Value := g_pth_Settings.darkMode
+    labelDarkModeCheckTooltipText := "Enable dark mode for menus and windows"
+    AddTooltipToControl(hTT, darkModeCheck.Hwnd, labelDarkModeCheckTooltipText)
+; Add function to apply dark mode
+ApplyDarkMode(isDark) {
+    if (isDark) {
+        settingsGui.BackColor := g_pth_Settings.darkModeColors.background
+        for ctrl in settingsGui {
+            if ctrl.Type = "Edit" {
+                ctrl.Opt("+Background" g_pth_Settings.darkModeColors.editbox)
+                ctrl.SetFont("c" g_pth_Settings.darkModeColors.text)
+            } else if ctrl.Type = "Text" {
+                ctrl.SetFont("c" g_pth_Settings.darkModeColors.text)
+            } else if ctrl.Type = "CheckBox" {
+                ctrl.SetFont("c" g_pth_Settings.darkModeColors.text)
+            }
+        }
+    } else {
+        settingsGui.BackColor := "Default"
+        for ctrl in settingsGui {
+            if ctrl.Type = "Edit" {
+                ctrl.Opt("+BackgroundDefault")
+                ctrl.SetFont("cDefault")
+            } else if ctrl.Type = "Text" || ctrl.Type = "CheckBox" {
+                ctrl.SetFont("cDefault")
+            }
+        }
+    }
+}
+
+; Add dark mode toggle handler
+darkModeCheck.OnEvent("Click", (*) => ApplyDarkMode(darkModeCheck.Value))
+
+; Apply current dark mode setting on GUI creation
+ApplyDarkMode(g_pth_Settings.darkMode)
 
     ; Add divider line to the next checkboxes because they aren't persistent settings
     checkBoxDivider := settingsGui.AddText("xm y+15 h2 w150 0x10")
@@ -1220,6 +1268,7 @@ PathSelector_LoadSettingsFromSettingsFilePath(settingsFilePath) {
         g_pth_Settings.alwaysShowClipboardmenuItem := IniRead(settingsFilePath, "Settings", "alwaysShowClipboardmenuItem", pathSelector_DefaultSettings.alwaysShowClipboardmenuItem)
         g_pth_Settings.enableUIAccess := IniRead(settingsFilePath, "Settings", "enableUIAccess", pathSelector_DefaultSettings.enableUIAccess)
         g_pth_settings.maxMenuLength := IniRead(settingsFilePath, "Settings", "maxMenuLength", pathSelector_DefaultSettings.maxMenuLength)
+        g_pth_Settings.darkMode := IniRead(settingsFilePath, "Settings", "darkMode", pathSelector_DefaultSettings.darkMode) = "1"
 
         ; Convert string boolean values to actual booleans
         g_pth_Settings.enableExplorerDialogMenuDebug := g_pth_Settings.enableExplorerDialogMenuDebug = "1"
